@@ -11,6 +11,8 @@ pub struct MergeOnReadBufferManager {
     positions: Arc<Mutex<HashMap<PartitionUId, i64>>>,
     // Set of partition IDs that changed since last merge
     changed_set: Arc<Mutex<HashSet<PartitionUId>>>,
+    // Total sum of all buffer sizes
+    total_size: Arc<Mutex<i64>>,
 }
 
 impl MergeOnReadBufferManager {
@@ -19,6 +21,7 @@ impl MergeOnReadBufferManager {
             base_map: Arc::new(Mutex::new(BTreeMap::new())),
             positions: Arc::new(Mutex::new(HashMap::new())),
             changed_set: Arc::new(Mutex::new(HashSet::new())),
+            total_size: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -36,6 +39,7 @@ impl MergeOnReadBufferManager {
         let mut base_map = self.base_map.lock().unwrap();
         let mut positions = self.positions.lock().unwrap();
         let mut changed_set = self.changed_set.lock().unwrap();
+        let mut total_size = self.total_size.lock().unwrap();
 
         // For each changed partition, update its position in base_map
         for uid in changed_set.drain() {
@@ -46,6 +50,7 @@ impl MergeOnReadBufferManager {
                     if bucket.is_empty() {
                         base_map.remove(&old_size);
                     }
+                    *total_size -= old_size;
                 }
             }
 
@@ -58,11 +63,15 @@ impl MergeOnReadBufferManager {
                             .entry(staging_size)
                             .or_insert_with(Vec::new)
                             .push(uid);
+                        *total_size += staging_size;
                     }
                 }
             }
         }
 
         base_map.clone()
+    }
+    pub fn get_total_size(&self) -> i64 {
+        *self.total_size.lock().unwrap()
     }
 }

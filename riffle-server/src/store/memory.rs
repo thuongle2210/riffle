@@ -155,6 +155,12 @@ impl<B: MemoryBuffer + Send + Sync + 'static> MemoryStore<B> {
             })
             .await;
 
+        // short-circuit if not reach the expected spill size
+        let total_available = self.buffer_manager.get_total_size();
+        if total_available < expected_spill_total_bytes {
+            return Ok(HashMap::new());
+        }
+
         let mut spill_candidates = HashMap::new();
         let mut real_spill_total_bytes = 0;
 
